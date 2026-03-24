@@ -123,8 +123,13 @@ On Windows:
 
     pip install -r requirements.txt
 
-Note: The requirements include PyTorch (torch), OpenCV headless, and yt-dlp. The total
+Note: The requirements include PyTorch (torch), OpenCV headless, and various others. The total
 download size may be several hundred megabytes. Ensure you have a stable internet connection.
+
+Alternatively run the following command if the above command failed for any reason:
+
+    pip install django torch numpy opencv-python-headless requests python-dotenv sympy yt-dlp
+
 
 **Step 4 — Apply database migrations**
 
