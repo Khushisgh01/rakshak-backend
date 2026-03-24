@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rakshak — Live Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:           #080b11;
+      --surface:      #0e1118;
+      --surface-2:    #131720;
+      --border:       #1c2235;
+      --border-soft:  #161c2a;
+      --text:         #dde3f0;
+      --text-muted:   #4a5568;
+      --text-dim:     #2d3748;
+      --cyan:         #38bdf8;
+      --cyan-dim:     rgba(56,189,248,0.12);
+      --cyan-border:  rgba(56,189,248,0.28);
+      --green:        #22c55e;
+      --green-dim:    rgba(34,197,94,0.10);
+      --green-border: rgba(34,197,94,0.28);
+      --red:          #ef4444;
+      --red-dim:      rgba(239,68,68,0.10);
+      --red-border:   rgba(239,68,68,0.28);
+      --amber:        #f59e0b;
+      --amber-dim:    rgba(245,158,11,0.10);
+      --amber-border: rgba(245,158,11,0.28);
+      --orange:       #fb923c;
+      --purple:       #a78bfa;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 24px 20px 60px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 24px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .page-header-left { display: flex; align-items: center; gap: 14px; }
+    .page-icon {
+      width: 44px; height: 44px;
+      background: var(--cyan-dim);
+      border: 1px solid var(--cyan-border);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .page-title { font-size: 1.3rem; font-weight: 700; color: #f1f5f9; }
+    .page-sub   { font-size: 0.7rem; color: var(--text-muted); font-family: monospace; text-transform: uppercase; letter-spacing: 0.09em; margin-top: 2px; }
+
+    .header-controls { display: flex; align-items: center; gap: 10px; }
+
+    .btn {
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid;
+      transition: background 0.18s;
+      white-space: nowrap;
+    }
+    .btn-start { background: var(--cyan-dim); border-color: var(--cyan-border); color: var(--cyan); }
+    .btn-start:hover:not(:disabled) { background: rgba(56,189,248,0.22); }
+    .btn-start:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-stop  { background: var(--red-dim); border-color: var(--red-border); color: var(--red); display: none; }
+    .btn-stop:hover { background: rgba(239,68,68,0.2); }
+
+    .global-status {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 0.78rem;
+      font-family: monospace;
+      color: var(--text-muted);
+      margin-bottom: 20px;
+      min-height: 26px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--border); flex-shrink: 0;
+    }
+    .dot.idle    { background: var(--border); }
+    .dot.loading { background: var(--amber); animation: blink 0.9s infinite; }
+    .dot.live    { background: var(--green); animation: blink 1.4s infinite; }
+    .dot.done    { background: var(--cyan); }
+    .dot.error   { background: var(--red); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    .total-badge { margin-left: auto; font-size: 0.7rem; color: var(--text-dim); font-family: monospace; }
+
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: var(--text-muted);
+      font-family: monospace;
+      font-size: 0.85rem;
+      display: none;
+    }
+    .empty-state .emoji { font-size: 2.5rem; margin-bottom: 12px; }
+
+    .camera-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(480px, 1fr));
+      gap: 16px;
+    }
+    @media (max-width: 520px) { .camera-grid { grid-template-columns: 1fr; } }
+
+    .camera-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      transition: border-color 0.3s;
+    }
+    .camera-card.alert { border-color: #5a1212; background: #0d0808; }
+    .camera-card.connecting { border-color: var(--amber-border); }
+    .camera-card.ended { border-color: var(--border-soft); opacity: 0.6; }
+
+    .camera-card-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-soft);
+      background: var(--surface-2);
+    }
+    .cam-icon {
+      width: 34px; height: 34px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .cam-title-block { flex: 1; min-width: 0; }
+    .cam-title {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #f1f5f9;
+      font-family: monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cam-coords {
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      font-family: monospace;
+      margin-top: 2px;
+    }
+
+    .cam-status-pill {
+      font-size: 0.62rem;
+      font-weight: 800;
+      padding: 3px 10px;
+      border-radius: 99px;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      flex-shrink: 0;
+    }
+    .pill-connecting { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border); }
+    .pill-live       { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); animation: blink 2s infinite; }
+    .pill-alert      { background: var(--red-dim);   color: var(--red);   border: 1px solid var(--red-border); }
+    .pill-ended      { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid #1e2a3a; }
+    .pill-error      { background: var(--red-dim);   color: var(--red);   border: 1px solid var(--red-border); }
+
+    .cam-frame-count {
+      font-size: 0.68rem;
+      font-family: monospace;
+      color: var(--text-dim);
+      flex-shrink: 0;
+    }
+
+    .camera-card-body { padding: 14px 16px; }
+
+    .timing-strip {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .t-chip {
+      background: var(--bg);
+      border: 1px solid var(--border-soft);
+      border-radius: 6px;
+      padding: 4px 9px;
+      font-size: 0.68rem;
+      font-family: monospace;
+      color: var(--text-muted);
+    }
+    .t-chip span { color: var(--cyan); font-weight: 700; }
+
+    .models-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    @media (max-width: 400px) { .models-grid { grid-template-columns: 1fr; } }
+
+    .model-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 11px 12px;
+    }
+    .model-box.det  { border-color: #5a1212; background: #0e0808; }
+    .model-box.clean { border-color: #143324; background: #080e0b; }
+
+    .model-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      padding-bottom: 7px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .model-name { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; font-family: monospace; }
+    .model-name.accident { color: var(--orange); }
+    .model-name.fire     { color: var(--red); }
+
+    .model-pill {
+      font-size: 0.6rem; font-weight: 800;
+      padding: 2px 7px; border-radius: 99px;
+      font-family: monospace; text-transform: uppercase;
+    }
+    .mpill-yes { background: var(--red-dim);   color: var(--red);   border: 1px solid var(--red-border); }
+    .mpill-no  { background: var(--green-dim); color: var(--green); border: 1px solid var(--green-border); }
+    .mpill-err { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border); }
+    .mpill-wait { background: rgba(100,116,139,0.1); color: #64748b; border: 1px solid #1e2a3a; }
+
+    .kv { display: flex; justify-content: space-between; font-family: monospace; font-size: 0.72rem; padding: 2px 0; border-bottom: 1px solid var(--border-soft); }
+    .kv:last-child { border-bottom: none; }
+    .kv-k { color: var(--text-muted); }
+    .kv-v { color: var(--text); font-weight: 600; }
+    .kv-v.cyan  { color: var(--cyan); }
+    .kv-v.green { color: var(--green); }
+    .kv-v.red   { color: var(--red); }
+    .kv-v.amber { color: var(--amber); }
+
+    .det-list { margin-top: 7px; }
+    .det-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; font-family: monospace; margin-bottom: 4px; }
+    .det-label.clean { color: var(--green); }
+    .det-label.fp    { color: var(--amber); }
+
+    .det-item {
+      background: var(--surface-2);
+      border: 1px solid var(--red-border);
+      border-radius: 6px;
+      padding: 7px 9px;
+      margin-top: 4px;
+    }
+    .det-item.fp-item { border-color: var(--amber-border); }
+
+    .cam-log {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: var(--bg);
+      border: 1px solid var(--border-soft);
+      border-radius: 7px;
+      font-size: 0.68rem;
+      font-family: monospace;
+      color: var(--text-muted);
+    }
+    .cam-log-label { font-size: 0.6rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.09em; color: var(--text-dim); margin-bottom: 4px; }
+
+    .connecting-placeholder {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 30px 0;
+      font-size: 0.78rem;
+      font-family: monospace;
+      color: var(--text-muted);
+      gap: 8px;
+    }
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--amber);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <div class="page-header-left">
+      <div class="page-icon">🛡</div>
+      <div>
+        <div class="page-title">Rakshak</div>
+        <div class="page-sub">Live Multi-Camera Dashboard</div>
+      </div>
+    </div>
+    <div class="header-controls">
+      <button class="btn btn-start" id="startBtn" onclick="startDashboard()">▶ Start All Cameras</button>
+      <button class="btn btn-stop"  id="stopBtn"  onclick="stopDashboard()">■ Stop</button>
+    </div>
+  </div>
+
+  <div class="global-status">
+    <div class="dot idle" id="gDot"></div>
+    <span id="gStatus">Ready</span>
+    <span class="total-badge" id="totalBadge"></span>
+  </div>
+
+  <div class="empty-state" id="emptyState">
+    <div class="emoji">📷</div>
+    No cameras in database. Add cameras via the API first.
+  </div>
+
+  <div class="camera-grid" id="cameraGrid"></div>
+
+  <script>
+    let abort      = null;
+    let cameraMap  = {};
+    let totalFrames = 0;
+
+    function setGlobal(state, text) {
+      document.getElementById('gDot').className    = `dot ${state}`;
+      document.getElementById('gStatus').textContent = text;
+    }
+
+    function setTotalBadge(n) {
+      document.getElementById('totalBadge').textContent = n > 0 ? `${n} total frames` : '';
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    function kvRow(k, v, cls) {
+      return `<div class="kv"><span class="kv-k">${esc(k)}</span><span class="kv-v ${cls||''}">${esc(String(v))}</span></div>`;
+    }
+
+    function buildModelBox(block, key) {
+      const nameClass = key === 'accident' ? 'accident' : 'fire';
+      const nameLabel = key === 'accident' ? ' Accident' : ' Fire & Smoke';
+
+      if (!block) {
+        return `<div class="model-box">
+          <div class="model-header">
+            <span class="model-name ${nameClass}">${nameLabel}</span>
+            <span class="model-pill mpill-wait">—</span>
+          </div>
+          ${kvRow('status', 'waiting for frame')}
+        </div>`;
+      }
+
+      if (block.error) {
+        return `<div class="model-box">
+          <div class="model-header">
+            <span class="model-name ${nameClass}">${nameLabel}</span>
+            <span class="model-pill mpill-err">ERR</span>
+          </div>
+          ${kvRow('error', block.error, 'amber')}
+        </div>`;
+      }
+
+      const detected  = block.detected;
+      const boxClass  = detected ? 'det' : 'clean';
+      const pillClass = detected ? 'mpill-yes' : 'mpill-no';
+      const pillLabel = detected ? '⚠' : 'OK';
+
+      let html = `<div class="model-box ${boxClass}">
+        <div class="model-header">
+          <span class="model-name ${nameClass}">${nameLabel}</span>
+          <span class="model-pill ${pillClass}">${pillLabel}</span>
+        </div>
+        ${kvRow('inference', block.inference_ms + ' ms', 'cyan')}
+        ${kvRow('round-trip', block.roundtrip_ms + ' ms')}`;
+
+      if (detected && block.detections && block.detections.length > 0) {
+        html += `<div class="det-list"><div class="det-label clean">Detections (${block.detections.length})</div>`;
+        block.detections.forEach(det => {
+          const b = det.box;
+          html += `<div class="det-item">
+            ${kvRow('type', det.type, 'red')}
+            ${kvRow('conf', (det.confidence * 100).toFixed(1) + '%')}
+            ${det.coverage ? kvRow('coverage', (det.coverage * 100).toFixed(1) + '%') : ''}
+            ${kvRow('box', `[${b.x1},${b.y1}]→[${b.x2},${b.y2}]`)}
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      if (block.false_positives && block.false_positives.length > 0) {
+        html += `<div class="det-list"><div class="det-label fp">Filtered FP (${block.false_positives.length})</div>`;
+        block.false_positives.forEach(fp => {
+          html += `<div class="det-item fp-item">
+            ${kvRow('type', fp.type, 'amber')}
+            ${kvRow('conf', (fp.confidence * 100).toFixed(1) + '%', 'amber')}
+            ${kvRow('coverage', (fp.coverage * 100).toFixed(1) + '%', 'amber')}
+          </div>`;
+        });
+        html += `</div>`;
+      }
+
+      if (!detected && (!block.false_positives || block.false_positives.length === 0)) {
+        html += kvRow('result', 'No detections', 'green');
+      }
+
+      html += `</div>`;
+      return html;
+    }
+
+    function createCameraCard(cameraId, lat, lng, url) {
+      const grid = document.getElementById('cameraGrid');
+      const card = document.createElement('div');
+      card.className = 'camera-card connecting';
+      card.id        = `cam-${cameraId}`;
+      card.innerHTML = `
+        <div class="camera-card-header">
+          <div class="cam-icon">📷</div>
+          <div class="cam-title-block">
+            <div class="cam-title">Camera #${cameraId}</div>
+            <div class="cam-coords">${lat}, ${lng}</div>
+          </div>
+          <span class="cam-status-pill pill-connecting" id="pill-${cameraId}">Connecting</span>
+          <span class="cam-frame-count" id="fc-${cameraId}"></span>
+        </div>
+        <div class="camera-card-body" id="body-${cameraId}">
+          <div class="connecting-placeholder">
+            <div class="spinner"></div>
+            Connecting to stream…
+          </div>
+        </div>`;
+      grid.appendChild(card);
+      cameraMap[cameraId] = { frameCount: 0, lat, lng, url };
+    }
+
+    function setPill(cameraId, cls, label) {
+      const pill = document.getElementById(`pill-${cameraId}`);
+      if (pill) { pill.className = `cam-status-pill ${cls}`; pill.textContent = label; }
+    }
+
+    function setCardClass(cameraId, cls) {
+      const card = document.getElementById(`cam-${cameraId}`);
+      if (card) card.className = `camera-card ${cls}`;
+    }
+
+    function setBody(cameraId, html) {
+      const body = document.getElementById(`body-${cameraId}`);
+      if (body) body.innerHTML = html;
+    }
+
+    function setFc(cameraId, n) {
+      const el = document.getElementById(`fc-${cameraId}`);
+      if (el) el.textContent = `#${n}`;
+    }
+
+    function setLog(cameraId, message) {
+      const body = document.getElementById(`body-${cameraId}`);
+      if (!body) return;
+      let log = body.querySelector('.cam-log');
+      if (!log) {
+        log = document.createElement('div');
+        log.className = 'cam-log';
+        log.innerHTML = `<div class="cam-log-label">Last Event</div><span id="log-msg-${cameraId}"></span>`;
+        body.appendChild(log);
+      }
+      const msg = document.getElementById(`log-msg-${cameraId}`);
+      if (msg) msg.textContent = message;
+    }
+
+    function handlePayload(d) {
+      const cid = d.camera_id;
+
+      if (d.status === 'initialising_all') {
+        setGlobal('loading', `Connecting ${d.camera_count} camera(s)…`);
+        d.camera_ids.forEach(id => {
+          if (!cameraMap[id]) createCameraCard(id, '…', '…', '…');
+        });
+        return;
+      }
+
+      if (d.status === 'no_cameras') {
+        document.getElementById('emptyState').style.display = 'block';
+        setGlobal('done', 'No cameras in database');
+        onDone();
+        return;
+      }
+
+      if (d.status === 'all_cameras_ended') {
+        setGlobal('done', 'All streams ended');
+        onDone();
+        return;
+      }
+
+      if (cid === undefined) return;
+
+      if (!cameraMap[cid]) {
+        createCameraCard(cid, d.camera_latitude || '?', d.camera_longitude || '?', d.camera_url || '');
+      }
+
+      const cam = cameraMap[cid];
+
+      switch (d.status) {
+        case 'initialising':
+          setLog(cid, 'Initialising stream…');
+          break;
+
+        case 'url_fetched':
+          setLog(cid, `URL fetched — ${d.title} (${d.timing.fetch_ms}ms)`);
+          break;
+
+        case 'connected': {
+          setPill(cid, 'pill-live', 'LIVE');
+          setCardClass(cid, '');
+          const t = d.timing;
+          setBody(cid, `
+            <div class="timing-strip">
+              <div class="t-chip">fetch <span>${t.fetch_ms}ms</span></div>
+              <div class="t-chip">first frame <span>${t.total_to_first_frame_ms}ms</span></div>
+              <div class="t-chip">buffer fill <span>${t.buffer_fill_ms}ms</span></div>
+            </div>
+            <div class="models-grid">
+              ${buildModelBox(null, 'accident')}
+              ${buildModelBox(null, 'fire')}
+            </div>`);
+          break;
+        }
+
+        case 'frame': {
+          cam.frameCount++;
+          setFc(cid, cam.frameCount);
+          totalFrames++;
+          setTotalBadge(totalFrames);
+
+          const models   = d.models || {};
+          const accBlock = models.accident || null;
+          const firBlock = models.fire     || null;
+          const anyDet   = (accBlock && accBlock.detected) || (firBlock && firBlock.detected);
+
+          setCardClass(cid, anyDet ? 'alert' : '');
+          setPill(cid, anyDet ? 'pill-alert' : 'pill-live', anyDet ? '⚠ ALERT' : 'LIVE');
+
+          const ft = d.timing || {};
+          const timingChips = Object.entries(ft).map(([k, v]) =>
+            `<div class="t-chip">${k.replace(/_/g,' ')} <span>${v}ms</span></div>`
+          ).join('');
+
+          setBody(cid, `
+            <div class="timing-strip">${timingChips}</div>
+            <div class="models-grid">
+              ${buildModelBox(accBlock, 'accident')}
+              ${buildModelBox(firBlock, 'fire')}
+            </div>`);
+          break;
+        }
+
+        case 'hiccup':
+          setLog(cid, `⚡ Hiccup #${d.hiccup_count} — ${d.message}`);
+          break;
+
+        case 'camera_stream_ended':
+        case 'stream_ended':
+          setPill(cid, 'pill-ended', 'Ended');
+          setCardClass(cid, 'ended');
+          setLog(cid, d.message);
+          break;
+
+        case 'camera_error':
+        case 'error':
+          setPill(cid, 'pill-error', 'Error');
+          setCardClass(cid, '');
+          setLog(cid, `Error: ${d.message}`);
+          break;
+
+        case 'warning':
+          setLog(cid, `Warning: ${d.message}`);
+          break;
+
+        default:
+          setLog(cid, `${d.status}: ${d.message || ''}`);
+      }
+    }
+
+    function onDone() {
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').style.display = 'none';
+      abort = null;
+    }
+
+    function stopDashboard() {
+      if (abort) { abort.abort(); abort = null; }
+      setGlobal('done', 'Stopped by user');
+      onDone();
+    }
+
+    async function startDashboard() {
+      document.getElementById('cameraGrid').innerHTML = '';
+      document.getElementById('emptyState').style.display = 'none';
+      cameraMap   = {};
+      totalFrames = 0;
+      setTotalBadge(0);
+      setGlobal('loading', 'Connecting…');
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').style.display = 'inline-block';
+
+      abort = new AbortController();
+
+      try {
+        const resp = await fetch('/stream/cameras/', { signal: abort.signal });
+        if (!resp.ok) { setGlobal('error', `HTTP ${resp.status}`); onDone(); return; }
+
+        const reader  = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let   buf     = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t) continue;
+            try { handlePayload(JSON.parse(t)); } catch(e) { console.warn('parse err', t, e); }
+          }
+        }
+
+        if (buf.trim()) { try { handlePayload(JSON.parse(buf.trim())); } catch(_){} }
+        if (abort) { setGlobal('done', 'Complete'); onDone(); }
+
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        setGlobal('error', e.message);
+        onDone();
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Rakshak — Dual Model Detector</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #080b11;
+      --surface:     #0e1118;
+      --surface-2:   #131720;
+      --border:      #1c2235;
+      --border-soft: #161c2a;
+      --text:        #dde3f0;
+      --text-muted:  #4a5568;
+      --text-dim:    #2d3748;
+      --cyan:        #38bdf8;
+      --cyan-dim:    rgba(56,189,248,0.12);
+      --cyan-border: rgba(56,189,248,0.28);
+      --green:       #22c55e;
+      --green-dim:   rgba(34,197,94,0.10);
+      --green-border:rgba(34,197,94,0.28);
+      --red:         #ef4444;
+      --red-dim:     rgba(239,68,68,0.10);
+      --red-border:  rgba(239,68,68,0.28);
+      --amber:       #f59e0b;
+      --amber-dim:   rgba(245,158,11,0.10);
+      --amber-border:rgba(245,158,11,0.28);
+      --orange:      #fb923c;
+      --purple:      #a78bfa;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      min-height: 100vh;
+      padding: 28px 20px 60px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .page-icon {
+      width: 44px; height: 44px;
+      background: var(--cyan-dim);
+      border: 1px solid var(--cyan-border);
+      border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px;
+      flex-shrink: 0;
+    }
+    .page-title { font-size: 1.3rem; font-weight: 700; color: #f1f5f9; }
+    .page-sub   { font-size: 0.7rem; color: var(--text-muted); font-family: monospace; text-transform: uppercase; letter-spacing: 0.09em; margin-top: 2px; }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px 24px;
+      margin-bottom: 22px;
+    }
+
+    .controls-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: flex-end;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-family: monospace;
+    }
+    .field input {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.88rem;
+      padding: 9px 13px;
+      outline: none;
+      transition: border-color 0.18s;
+      font-family: monospace;
+    }
+    .field input:focus { border-color: var(--cyan); }
+    .field-url { flex: 1; min-width: 260px; }
+    .field-url input { width: 100%; }
+    .field-tq input  { width: 90px; }
+
+    .toggle-wrap {
+      display: flex; align-items: center; gap: 10px;
+      padding-bottom: 2px;
+    }
+    .toggle-wrap label {
+      font-size: 0.68rem; font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 0.09em;
+      font-family: monospace;
+    }
+    .toggle { position: relative; width: 42px; height: 23px; }
+    .toggle input { display: none; }
+    .toggle-slider {
+      position: absolute; inset: 0;
+      background: var(--border);
+      border-radius: 99px;
+      cursor: pointer;
+      transition: background 0.18s, border 0.18s;
+      border: 1px solid var(--border);
+    }
+    .toggle-slider::before {
+      content: '';
+      position: absolute;
+      width: 17px; height: 17px;
+      left: 2px; top: 2px;
+      background: var(--text-muted);
+      border-radius: 50%;
+      transition: transform 0.18s, background 0.18s;
+    }
+    .toggle input:checked + .toggle-slider { background: var(--cyan-dim); border-color: var(--cyan); }
+    .toggle input:checked + .toggle-slider::before { transform: translateX(19px); background: var(--cyan); }
+    .toggle-val { font-size: 0.78rem; font-family: monospace; color: #94a3b8; min-width: 60px; }
+
+    .btn-row { display: flex; gap: 10px; align-items: center; }
+
+    .btn {
+      padding: 9px 22px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.18s, border-color 0.18s, opacity 0.18s;
+      border: 1px solid;
+      white-space: nowrap;
+    }
+    .btn-start {
+      background: var(--cyan-dim);
+      border-color: var(--cyan-border);
+      color: var(--cyan);
+    }
+    .btn-start:hover:not(:disabled) { background: rgba(56,189,248,0.22); }
+    .btn-start:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-stop {
+      background: var(--red-dim);
+      border-color: var(--red-border);
+      color: var(--red);
+      display: none;
+    }
+    .btn-stop:hover { background: rgba(239,68,68,0.2); }
+
+    .status-strip {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 0.78rem;
+      font-family: monospace;
+      color: var(--text-muted);
+      margin-bottom: 18px;
+      min-height: 26px;
+    }
+    .dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+      background: var(--border);
+      transition: background 0.2s;
+    }
+    .dot.idle    { background: var(--border); }
+    .dot.loading { background: var(--amber); animation: blink 0.9s infinite; }
+    .dot.live    { background: var(--green); animation: blink 1.4s infinite; }
+    .dot.done    { background: var(--cyan); }
+    .dot.error   { background: var(--red); }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+    .fc-badge {
+      margin-left: auto;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: monospace;
+    }
+
+    #feed { display: flex; flex-direction: column; gap: 14px; }
+
+    .card {
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      padding: 16px 18px;
+      animation: rise 0.2s ease-out;
+    }
+    @keyframes rise { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+
+    .card-meta   { background: var(--bg);      border-color: var(--border-soft); }
+    .card-ok     { background: #0b1510;         border-color: #143324; }
+    .card-warn   { background: #12100a;         border-color: #3d2a0d; }
+    .card-err    { background: #110a0a;         border-color: #3d1010; }
+    .card-frame  { background: var(--surface);  border-color: var(--border); }
+    .card-frame.any-detected { background: #130c0c; border-color: #5a1212; }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin-bottom: 12px;
+    }
+    .badge {
+      font-size: 0.62rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-family: monospace;
+      flex-shrink: 0;
+    }
+    .badge-info  { background: rgba(100,116,139,0.15); color:#94a3b8; border:1px solid #1e2a3a; }
+    .badge-ok    { background: var(--green-dim); color:var(--green); border:1px solid var(--green-border); }
+    .badge-frame { background: var(--cyan-dim); color:var(--cyan); border:1px solid var(--cyan-border); }
+    .badge-alert { background: var(--red-dim); color:var(--red); border:1px solid var(--red-border); }
+    .badge-fp    { background: var(--amber-dim); color:var(--amber); border:1px solid var(--amber-border); }
+    .badge-warn  { background: var(--amber-dim); color:var(--amber); border:1px solid var(--amber-border); }
+
+    .card-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #94a3b8;
+      font-family: monospace;
+    }
+    .card-num {
+      margin-left: auto;
+      font-size: 0.7rem;
+      color: var(--text-dim);
+      font-family: monospace;
+    }
+
+    .kv { display:flex; justify-content:space-between; font-family:monospace; font-size:0.75rem; padding:3px 0; border-bottom:1px solid var(--border-soft); }
+    .kv:last-child { border-bottom:none; }
+    .kv-k { color:var(--text-muted); }
+    .kv-v { color:var(--text); font-weight:600; }
+    .kv-v.cyan   { color:var(--cyan); }
+    .kv-v.green  { color:var(--green); }
+    .kv-v.red    { color:var(--red); }
+    .kv-v.amber  { color:var(--amber); }
+    .kv-v.purple { color:var(--purple); }
+
+    .divider { height:1px; background:var(--border-soft); margin:12px 0; }
+
+    .stat-row { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .stat {
+      background: var(--bg);
+      border: 1px solid var(--border-soft);
+      border-radius: 8px;
+      padding: 8px 12px;
+      min-width: 110px;
+      flex: 1;
+    }
+    .stat-l { font-size:0.62rem; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); font-family:monospace; margin-bottom:4px; }
+    .stat-v { font-size:0.95rem; font-weight:700; font-family:monospace; color:var(--text); }
+    .stat-v.cyan   { color:var(--cyan); }
+    .stat-v.green  { color:var(--green); }
+    .stat-v.red    { color:var(--red); }
+    .stat-v.amber  { color:var(--amber); }
+
+    .models-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    @media (max-width: 620px) { .models-grid { grid-template-columns: 1fr; } }
+
+    .model-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 13px 14px;
+    }
+    .model-box.detected-box  { border-color: #5a1212; background: #0e0808; }
+    .model-box.clean-box     { border-color: #143324; background: #080e0b; }
+
+    .model-box-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-soft);
+    }
+    .model-name {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-family: monospace;
+    }
+    .model-name.accident { color: var(--orange); }
+    .model-name.fire     { color: var(--red); }
+
+    .model-detected-pill {
+      margin-left: auto;
+      font-size: 0.62rem;
+      font-weight: 800;
+      padding: 2px 9px;
+      border-radius: 99px;
+      font-family: monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .pill-yes { background:var(--red-dim); color:var(--red); border:1px solid var(--red-border); }
+    .pill-no  { background:var(--green-dim); color:var(--green); border:1px solid var(--green-border); }
+    .pill-err { background:var(--amber-dim); color:var(--amber); border:1px solid var(--amber-border); }
+
+    .det-item {
+      background: var(--surface-2);
+      border: 1px solid var(--red-border);
+      border-radius: 7px;
+      padding: 9px 11px;
+      margin-top: 7px;
+    }
+    .det-item.fp-item { border-color: var(--amber-border); }
+    .det-section-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      font-family: monospace;
+      margin: 9px 0 5px;
+    }
+    .det-section-label.clean { color:var(--green); }
+    .det-section-label.fp    { color:var(--amber); }
+
+    .timing-section { margin-top: 10px; }
+    .timing-section-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      color: var(--text-muted);
+      font-family: monospace;
+      margin-bottom: 5px;
+    }
+
+    .scroll-tip {
+      text-align: center;
+      font-size: 0.68rem;
+      color: var(--text-dim);
+      font-family: monospace;
+      padding: 6px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-header">
+    <div class="page-icon">🛡</div>
+    <div>
+      <div class="page-title">Rakshak</div>
+      <div class="page-sub">Dual-Model Stream Detector — Accident + Fire/Smoke</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="controls-grid">
+      <div class="field field-url">
+        <label for="ytUrl">YouTube URL</label>
+        <input type="text" id="ytUrl" placeholder="https://www.youtube.com/watch?v=…"/>
+      </div>
+      <div class="field field-tq">
+        <label for="tq">Quantum (s)</label>
+        <input type="number" id="tq" value="3" min="1" max="60"/>
+      </div>
+      <div class="toggle-wrap">
+        <label>Live</label>
+        <label class="toggle">
+          <input type="checkbox" id="liveToggle" checked/>
+          <span class="toggle-slider"></span>
+        </label>
+        <span class="toggle-val" id="toggleVal">LIVE</span>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-start" id="startBtn" onclick="startStream()">▶ Start</button>
+        <button class="btn btn-stop"  id="stopBtn"  onclick="stopStream()">■ Stop</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-strip">
+    <div class="dot idle" id="dot"></div>
+    <span id="statusText">Ready</span>
+    <span class="fc-badge" id="fcBadge"></span>
+  </div>
+
+  <div id="feed"></div>
+
+  <script>
+    const MAX_CARDS = 60;
+    let abort = null;
+    let fc    = 0;
+
+    document.getElementById('liveToggle').addEventListener('change', function () {
+      document.getElementById('toggleVal').textContent = this.checked ? 'LIVE' : 'RECORDED';
+    });
+
+    function setStatus(state, text) {
+      document.getElementById('dot').className = `dot ${state}`;
+      document.getElementById('statusText').textContent = text;
+    }
+
+    function setFc(n) {
+      document.getElementById('fcBadge').textContent = n > 0 ? `${n} frames` : '';
+    }
+
+    function push(html) {
+      const feed = document.getElementById('feed');
+      const el   = document.createElement('div');
+      el.innerHTML = html;
+      const node = el.firstElementChild;
+      feed.appendChild(node);
+      const cards = feed.querySelectorAll('.card');
+      if (cards.length > MAX_CARDS) {
+        cards[0].remove();
+        if (!feed.querySelector('.scroll-tip')) {
+          const tip = document.createElement('div');
+          tip.className   = 'scroll-tip';
+          tip.textContent = `— showing latest ${MAX_CARDS} frames —`;
+          feed.prepend(tip);
+        }
+      }
+      node.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    function esc(s) {
+      return String(s)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;');
+    }
+
+    function kvRow(k, v, cls) {
+      return `<div class="kv"><span class="kv-k">${k}</span><span class="kv-v ${cls||''}">${esc(v)}</span></div>`;
+    }
+
+    function renderModelBox(block, modelKey) {
+      const nameClass = modelKey === 'accident' ? 'accident' : 'fire';
+      const nameLabel = modelKey === 'accident' ? ' Accident' : ' Fire & Smoke';
+
+      if (!block) {
+        return `<div class="model-box">
+          <div class="model-box-header">
+            <span class="model-name ${nameClass}">${nameLabel}</span>
+            <span class="model-detected-pill pill-err">NO SERVER</span>
+          </div>
+          <div class="kv"><span class="kv-k">status</span><span class="kv-v amber">Model URL not configured</span></div>
+        </div>`;
+      }
+
+      if (block.error) {
+        return `<div class="model-box">
+          <div class="model-box-header">
+            <span class="model-name ${nameClass}">${nameLabel}</span>
+            <span class="model-detected-pill pill-err">ERROR</span>
+          </div>
+          <div class="kv"><span class="kv-k">error</span><span class="kv-v amber">${esc(block.error)}</span></div>
+        </div>`;
+      }
+
+      const detected   = block.detected;
+      const boxClass   = detected ? 'detected-box' : 'clean-box';
+      const pillClass  = detected ? 'pill-yes' : 'pill-no';
+      const pillLabel  = detected ? '⚠ DETECTED' : 'CLEAR';
+
+      let timingHtml = `
+        ${kvRow('GPU inference', block.inference_ms + ' ms', 'cyan')}
+        ${kvRow('Round-trip', block.roundtrip_ms + ' ms')}
+        ${kvRow('Net overhead', block.network_overhead_ms + ' ms')}
+      `;
+
+      let detectionsHtml = '';
+      if (detected && block.detections && block.detections.length > 0) {
+        detectionsHtml += `<div class="det-section-label clean">Detections (${block.detections.length})</div>`;
+        block.detections.forEach(det => {
+          const b = det.box;
+          detectionsHtml += `<div class="det-item">
+            ${kvRow('type',       det.type, 'red')}
+            ${kvRow('confidence', (det.confidence * 100).toFixed(1) + '%')}
+            ${det.coverage ? kvRow('coverage', (det.coverage * 100).toFixed(1) + '% of frame') : ''}
+            ${kvRow('box', `[${b.x1}, ${b.y1}] → [${b.x2}, ${b.y2}]`)}
+          </div>`;
+        });
+      }
+
+      let fpHtml = '';
+      if (block.false_positives && block.false_positives.length > 0) {
+        fpHtml += `<div class="det-section-label fp">Filtered FP (${block.false_positives.length})</div>`;
+        block.false_positives.forEach(fp => {
+          const b = fp.box;
+          fpHtml += `<div class="det-item fp-item">
+            ${kvRow('type',       fp.type, 'amber')}
+            ${kvRow('confidence', (fp.confidence * 100).toFixed(1) + '%', 'amber')}
+            ${kvRow('coverage',   (fp.coverage  * 100).toFixed(1) + '%  ← rejection reason', 'amber')}
+            ${kvRow('reason',     fp.fp_reason || 'coverage exceeded threshold')}
+          </div>`;
+        });
+      }
+
+      let noDetectionLine = '';
+      if (!detected && (!block.false_positives || block.false_positives.length === 0)) {
+        noDetectionLine = kvRow('result', 'No detections', 'green');
+      }
+
+      return `<div class="model-box ${boxClass}">
+        <div class="model-box-header">
+          <span class="model-name ${nameClass}">${nameLabel}</span>
+          <span class="model-detected-pill ${pillClass}">${pillLabel}</span>
+        </div>
+        <div class="timing-section">
+          <div class="timing-section-label">Timing</div>
+          ${timingHtml}
+        </div>
+        ${detectionsHtml}
+        ${fpHtml}
+        ${noDetectionLine}
+      </div>`;
+    }
+
+    function renderFrame(d) {
+      const models   = d.models || {};
+      const accBlock = models.accident || null;
+      const firBlock = models.fire     || null;
+
+      const anyDetected = (accBlock && accBlock.detected) || (firBlock && firBlock.detected);
+      const posLabel    = d.position
+        ? `<span style="color:var(--text-muted);font-size:0.7rem;margin-left:4px">[${d.position.replace(/_/g,' ').toUpperCase()}]</span>`
+        : '';
+      const tsLabel = d.timestamp_s !== undefined ? `t = ${d.timestamp_s}s` : 'LIVE';
+
+      const ft = d.timing || {};
+      const timingRows = Object.entries(ft).map(([k, v]) =>
+        kvRow(k.replace(/_/g,' '), v + ' ms')
+      ).join('');
+
+      return `<div class="card card-frame ${anyDetected ? 'any-detected' : ''}">
+        <div class="card-header">
+          <span class="badge ${anyDetected ? 'badge-alert' : 'badge-frame'}">${anyDetected ? '⚠ ALERT' : 'FRAME'}</span>
+          <span class="card-label">${tsLabel}${posLabel}</span>
+          <span class="card-num">#${d.frame_count}</span>
+        </div>
+        ${timingRows ? `<div style="margin-bottom:10px">${timingRows}</div>` : ''}
+        <div class="divider"></div>
+        <div class="models-grid">
+          ${renderModelBox(accBlock, 'accident')}
+          ${renderModelBox(firBlock, 'fire')}
+        </div>
+      </div>`;
+    }
+
+    function renderConnected(d) {
+      const t = d.timing;
+      return `<div class="card card-ok">
+        <div class="card-header">
+          <span class="badge badge-ok">CONNECTED</span>
+          <span class="card-label">${esc(d.title)}</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><div class="stat-l">yt-dlp fetch</div><div class="stat-v cyan">${t.fetch_ms} ms</div></div>
+          <div class="stat"><div class="stat-l">First frame</div><div class="stat-v cyan">${t.total_to_first_frame_ms} ms</div></div>
+          <div class="stat"><div class="stat-l">Buffer fill</div><div class="stat-v">${t.buffer_fill_ms} ms</div></div>
+          <div class="stat"><div class="stat-l">Poll overhead</div><div class="stat-v">${t.poll_overhead_ms} ms</div></div>
+        </div>
+      </div>`;
+    }
+
+    function renderVideoInfo(d) {
+      return `<div class="card card-meta">
+        <div class="card-header">
+          <span class="badge badge-info">VIDEO INFO</span>
+          <span class="card-label">${esc(d.title)}</span>
+        </div>
+        <div class="stat-row">
+          <div class="stat"><div class="stat-l">Duration</div><div class="stat-v cyan">${d.duration_s}s</div></div>
+          <div class="stat"><div class="stat-l">FPS</div><div class="stat-v">${d.fps}</div></div>
+          <div class="stat"><div class="stat-l">Total Frames</div><div class="stat-v">${d.total_frames}</div></div>
+          <div class="stat"><div class="stat-l">Quantum</div><div class="stat-v">${d.time_quantum}s</div></div>
+        </div>
+      </div>`;
+    }
+
+    function handle(d) {
+      let html = '';
+      switch (d.status) {
+        case 'initialising':
+          push(`<div class="card card-meta">
+            <div class="card-header">
+              <span class="badge badge-info">INIT</span>
+              <span class="card-label">mode: ${d.mode} — quantum: ${d.time_quantum}s</span>
+            </div>
+          </div>`);
+          break;
+        case 'url_fetched':
+          push(`<div class="card card-meta">
+            <div class="card-header">
+              <span class="badge badge-info">URL FETCHED</span>
+              <span class="card-label">${esc(d.title)}</span>
+            </div>
+            ${kvRow('yt-dlp extraction', d.timing.fetch_ms + ' ms', 'cyan')}
+          </div>`);
+          break;
+        case 'connected':
+          push(renderConnected(d));
+          setStatus('live', `Live — ${d.title}`);
+          break;
+        case 'video_info':
+          push(renderVideoInfo(d));
+          setStatus('live', `Playing — ${d.title}`);
+          break;
+        case 'frame':
+          fc++;
+          setFc(fc);
+          push(renderFrame(d));
+          break;
+        case 'stream_ended':
+          push(`<div class="card card-err">
+            <div class="card-header">
+              <span class="badge badge-alert">STREAM ENDED</span>
+              <span class="card-label">${esc(d.message)}</span>
+            </div>
+            ${kvRow('frames received', d.frame_count)}
+          </div>`);
+          setStatus('done', 'Stream ended');
+          onDone();
+          break;
+        case 'video_complete':
+          push(`<div class="card card-ok">
+            <div class="card-header">
+              <span class="badge badge-ok">COMPLETE</span>
+              <span class="card-label">${esc(d.message)}</span>
+            </div>
+            ${kvRow('frames processed', d.frame_count, 'green')}
+          </div>`);
+          setStatus('done', 'Done');
+          onDone();
+          break;
+        case 'error':
+          push(`<div class="card card-err">
+            <div class="card-header">
+              <span class="badge badge-alert">ERROR</span>
+              <span class="card-label">${esc(d.message)}</span>
+            </div>
+          </div>`);
+          setStatus('error', d.message);
+          onDone();
+          break;
+        case 'warning':
+          push(`<div class="card card-warn">
+            <span class="badge badge-warn">WARNING</span>
+            <span style="font-size:0.8rem;margin-left:8px">${esc(d.message)}</span>
+          </div>`);
+          break;
+        default:
+          push(`<div class="card card-meta">
+            <span class="badge badge-info">${esc(d.status)}</span>
+            <pre style="font-size:0.7rem;color:var(--text-muted);margin-top:8px;white-space:pre-wrap">${esc(JSON.stringify(d,null,2))}</pre>
+          </div>`);
+      }
+    }
+
+    function onDone() {
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').style.display  = 'none';
+      abort = null;
+    }
+
+    function stopStream() {
+      if (abort) { abort.abort(); abort = null; }
+      setStatus('done', 'Stopped');
+      onDone();
+    }
+
+    async function startStream() {
+      const url  = document.getElementById('ytUrl').value.trim();
+      const live = document.getElementById('liveToggle').checked;
+      const tq   = parseInt(document.getElementById('tq').value) || 3;
+
+      if (!url) { alert('Enter a YouTube URL.'); return; }
+
+      document.getElementById('feed').innerHTML = '';
+      fc = 0;
+      setFc(0);
+      setStatus('loading', 'Connecting…');
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').style.display = 'inline-block';
+
+      const params   = new URLSearchParams({ url, live: String(live), tq });
+      abort          = new AbortController();
+
+      try {
+        const resp = await fetch(`/stream/detect/?${params}`, { signal: abort.signal });
+        if (!resp.ok) { setStatus('error', `HTTP ${resp.status}`); onDone(); return; }
+
+        const reader  = resp.body.getReader();
+        const decoder = new TextDecoder();
+        let   buf     = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buf += decoder.decode(value, { stream: true });
+          const lines = buf.split('\n');
+          buf = lines.pop();
+          for (const line of lines) {
+            const t = line.trim();
+            if (!t) continue;
+            try { handle(JSON.parse(t)); } catch(e) { console.warn('parse error', t, e); }
+          }
+        }
+
+        if (buf.trim()) { try { handle(JSON.parse(buf.trim())); } catch(_){} }
+        if (abort) { setStatus('done', 'Complete'); onDone(); }
+
+      } catch (e) {
+        if (e.name === 'AbortError') return;
+        setStatus('error', e.message);
+        onDone();
+      }
+    }
+  </script>
+</body>
+</html>
