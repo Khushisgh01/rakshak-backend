@@ -123,7 +123,7 @@ On Windows:
 
     pip install -r requirements.txt
 
-Note: The requirements include PyTorch (torch), OpenCV headless, and various others. The total
+Note: The requirements include PyTorch (torch), OpenCV headless, and various others dependencies. The total
 download size may be several hundred megabytes. Ensure you have a stable internet connection.
 
 Alternatively run the following command if the above command failed for whatever reason:
