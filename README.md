@@ -160,7 +160,7 @@ Run all cells in both notebooks. Each notebook will:
 
 - Install dependencies
 - Load the model
-- Start a Flask server on a local port
+- Start a server on a local port
 - Use ngrok to expose that server to a public HTTPS URL
 
 At the end of execution, each notebook will print a public URL in the format:
