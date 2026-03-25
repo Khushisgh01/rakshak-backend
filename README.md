@@ -183,10 +183,9 @@ record is updated in place with the new incident type, timestamp, and footage pa
 
 ## 4. Environment Setup
 
-**Step 1 — Clone the repository**
+**Step 1 — Download the ZIP file and extract it**
 
-    git clone https://github.com/your-org/rakshak.git
-    cd rakshak
+    cd extracted-path/rakshak-main
 
 **Step 2 — Create a virtual environment**
 
